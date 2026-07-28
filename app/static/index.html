@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Context</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header><b><i>●</i> Context<span>Lab</span></b><small id="updated">Loading database…</small></header>
+  <main>
+    <div class="heading"><h1>NBA statistical explorer</h1><p>Rolling-window results from game-level data.</p></div>
+    <form id="controls">
+      <label>Season<select id="season"></select></label>
+      <label>Player<select id="player"></select></label>
+      <label>Measure<select id="metric"><option value="points">Points per game</option><option value="rebounds">Rebounds per game</option><option value="assists">Assists per game</option><option value="points_per_36">Points per 36 minutes</option></select></label>
+      <label>Window<input id="window" type="number" min="2" max="20" value="2"></label>
+      <button>Run query</button>
+    </form>
+    <section class="summary"><div><small id="result-label">BEST WINDOW</small><h2 id="result-name">—</h2><p id="result-season">—</p></div><strong id="result-value">—</strong></section>
+    <section class="panel"><div class="panel-title"><h2>Game values</h2><span id="window-date"></span></div><div id="chart" class="chart"></div></section>
+    <section class="panel similar"><div class="panel-title"><h2>Similar results</h2><span>Click a row to inspect it</span></div><div class="row head"><span>Rank</span><span>Player</span><span>Value</span><span>End date</span></div><div id="results"></div></section>
+    <p id="error" role="alert"></p>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
