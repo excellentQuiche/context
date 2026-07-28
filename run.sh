@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-set -e
-test -d .venv || python3 -m venv .venv
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+if [ ! -d .venv ]; then
+    echo "Virtual environment not found. Create .venv and install requirements first." >&2
+    exit 1
+fi
+
 source .venv/bin/activate
-python -m pip install -r requirements.txt
-python -m uvicorn app.main:app --reload
+exec python -m uvicorn app.main:app --reload
