@@ -67,17 +67,23 @@ form {
   padding: 16px;
   display: grid;
   grid-template-columns:
-    .75fr
-    1.2fr
-    1.55fr
-    1.35fr
+    .65fr
     1fr
-    .55fr
+    1fr
+    .65fr
+    1.2fr
+    1.05fr
+    .85fr
+    .45fr
     auto;
-  gap: 10px;
+  gap: 8px;
   align-items: end;
   background: var(--white);
   border: 1px solid var(--line);
+}
+
+.hidden {
+  display: none;
 }
 
 label {
@@ -98,7 +104,8 @@ input {
   background: #faf7f2;
 }
 
-input:disabled {
+input:disabled,
+select:disabled {
   opacity: .45;
 }
 
@@ -137,6 +144,15 @@ form button {
 
 .summary p {
   margin: 0;
+}
+
+.summary .comparison-result {
+  margin-top: 7px;
+  font-weight: bold;
+}
+
+.comparison-result:empty {
+  display: none;
 }
 
 .summary > strong {
@@ -239,7 +255,7 @@ form button {
   font-weight: bold;
 }
 
-@media (max-width: 950px) {
+@media (max-width: 1050px) {
   form {
     grid-template-columns: 1fr 1fr 1fr;
   }

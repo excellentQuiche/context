@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>ContextLab</title>
+  <title>Context</title>
   <link
-  rel="icon"
-  type="image/svg+xml"
-  href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>"
+    rel="icon"
+    type="image/svg+xml"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>"
   >
-  <link rel="stylesheet" href="/static/style.css?v=2">
+  <link rel="stylesheet" href="/static/style.css?v=4">
 </head>
 <body>
   <header>
@@ -32,6 +32,16 @@
       <label>
         Player
         <select id="player"></select>
+      </label>
+
+      <label>
+        Compare with
+        <select id="compare"></select>
+      </label>
+
+      <label id="compare-season-label" class="hidden">
+        Compare season
+        <select id="compare-season" disabled></select>
       </label>
 
       <label>
@@ -62,6 +72,7 @@
         <small id="result-label">BEST WINDOW</small>
         <h2 id="result-name">—</h2>
         <p id="result-season">—</p>
+        <p id="comparison-result" class="comparison-result"></p>
       </div>
       <strong id="result-value">—</strong>
     </section>
@@ -91,6 +102,6 @@
     <p id="error" role="alert"></p>
   </main>
 
-  <script src="/static/app.js?v=3"></script>
+  <script src="/static/app.js?v=5"></script>
 </body>
 </html>

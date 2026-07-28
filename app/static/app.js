@@ -2,7 +2,9 @@ const $ = (id) => document.getElementById(id);
 
 const state = {
   catalog: null,
-  result: null
+  result: null,
+  comparisonActive: false,
+  comparisonSeasonCustom: false
 };
 
 async function request(url) {
@@ -58,6 +60,35 @@ function loadMetricOptions() {
   $('metric').value = 'pts';
 }
 
+function loadComparisonPlayers(players) {
+  const options = players
+    .map(player => {
+      let years = '';
+
+      if (player.from_year && player.to_year) {
+        years = ` (${player.from_year}–${player.to_year})`;
+      } else if (player.from_year) {
+        years = ` (${player.from_year})`;
+      }
+
+      return `<option value="${player.id}">${player.name}${years}</option>`;
+    })
+    .join('');
+
+  $('compare').innerHTML =
+    '<option value="">No comparison</option>' + options;
+}
+
+function loadSeasonOptions(seasons) {
+  const options = seasons
+    .map(season => `<option value="${season}">${season}</option>`)
+    .join('');
+
+  $('season').innerHTML = options;
+  $('compare-season').innerHTML = options;
+  $('compare-season').value = $('season').value;
+}
+
 function loadScopeOptions() {
   $('scope').innerHTML = Object.entries(state.catalog.scopes)
     .map(([id, label]) => `<option value="${id}">${label}</option>`)
@@ -89,6 +120,25 @@ function updateWindow() {
   $('window').disabled = $('scope').value !== 'window';
 }
 
+function updateComparisonControls() {
+  const active = Boolean($('compare').value);
+
+  if (active && !state.comparisonActive) {
+    $('compare-season').value = $('season').value;
+    state.comparisonSeasonCustom = false;
+  }
+
+  $('compare-season-label').classList.toggle('hidden', !active);
+  $('compare-season').disabled = !active;
+
+  if (!active) {
+    $('comparison-result').textContent = '';
+    state.comparisonSeasonCustom = false;
+  }
+
+  state.comparisonActive = active;
+}
+
 function resetToPoints() {
   $('metric').value = 'pts';
   updateCalculations();
@@ -96,25 +146,25 @@ function resetToPoints() {
 }
 
 async function loadMeta() {
-  const [meta, catalog] = await Promise.all([
+  const [meta, catalog, comparisonPlayers] = await Promise.all([
     json('/api/meta'),
-    json('/api/metrics')
+    json('/api/metrics'),
+    json('/api/all-players')
   ]);
 
   state.catalog = catalog;
 
-  $('season').innerHTML = meta.seasons
-    .map(season => `<option>${season}</option>`)
-    .join('');
+  loadSeasonOptions(meta.seasons);
+  loadMetricOptions();
+  loadComparisonPlayers(comparisonPlayers);
+  loadScopeOptions();
+  updateCalculations();
+  updateWindow();
+  updateComparisonControls();
 
   $('updated').textContent = meta.built_at
     ? `Built ${new Date(meta.built_at).toLocaleString()}`
     : 'Database ready';
-
-  loadMetricOptions();
-  loadScopeOptions();
-  updateCalculations();
-  updateWindow();
 
   await loadPlayers();
 }
@@ -149,6 +199,20 @@ function params(extra = {}) {
   });
 }
 
+function comparisonParams() {
+  const comparisonPlayer = $('compare').value;
+
+  return new URLSearchParams({
+    season: $('compare-season').value,
+    primary_player_id: comparisonPlayer,
+    comparison_player_id: comparisonPlayer,
+    metric: $('metric').value,
+    calculation: $('calculation').value,
+    scope: $('scope').value,
+    window: $('window').value
+  });
+}
+
 async function runQuery(event, allowFallback = true) {
   event?.preventDefault();
   $('error').textContent = '';
@@ -158,10 +222,21 @@ async function runQuery(event, allowFallback = true) {
   }
 
   try {
-    const [resultResponse, similarResponse] = await Promise.all([
+    const requests = [
       request(`/api/result?${params()}`),
       request(`/api/similar?${params({ limit: 20 })}`)
-    ]);
+    ];
+
+    if ($('compare').value) {
+      requests.push(
+        request(`/api/compare?${comparisonParams()}`)
+      );
+    }
+
+    const responses = await Promise.all(requests);
+    const resultResponse = responses[0];
+    const similarResponse = responses[1];
+    const comparisonResponse = responses[2];
 
     if (!similarResponse.ok) {
       throw new Error(
@@ -192,11 +267,21 @@ async function runQuery(event, allowFallback = true) {
       );
     }
 
+    if (comparisonResponse && !comparisonResponse.ok) {
+      throw new Error(
+        comparisonResponse.body.detail ||
+        `Comparison request failed (${comparisonResponse.status})`
+      );
+    }
+
     const result = resultResponse.body;
 
     state.result = result;
 
     renderResult(result);
+    renderComparison(
+      comparisonResponse ? comparisonResponse.body : null
+    );
     renderSimilar(similar);
   } catch (error) {
     $('error').textContent = error.message;
@@ -257,6 +342,39 @@ function renderResult(result) {
     .join('');
 }
 
+function renderComparison(data) {
+  if (!data) {
+    $('comparison-result').textContent = '';
+    return;
+  }
+
+  const player = data.primary;
+  const season = data.season;
+  const prefix = `vs. ${player.player_name} (${season}): `;
+
+  if (player.status === 'did_not_play') {
+    if (player.value !== null) {
+      $('comparison-result').textContent =
+        `${prefix}${Number(player.value).toFixed(1)} ${data.unit} · did not play`;
+    } else {
+      $('comparison-result').textContent =
+        `${prefix}unavailable · did not play`;
+    }
+
+    return;
+  }
+
+  if (player.status === 'no_qualifying_result') {
+    $('comparison-result').textContent =
+      `${prefix}no qualifying result`;
+
+    return;
+  }
+
+  $('comparison-result').textContent =
+    `${prefix}${Number(player.value).toFixed(1)} ${data.unit}`;
+}
+
 function renderSimilar(data) {
   $('results').innerHTML = data.results
     .map(row => `
@@ -281,7 +399,27 @@ function renderSimilar(data) {
 $('controls').addEventListener('submit', runQuery);
 
 $('season').addEventListener('change', () => {
+  if ($('compare').value && !state.comparisonSeasonCustom) {
+    $('compare-season').value = $('season').value;
+  }
+
   loadPlayers().catch(error => {
+    $('error').textContent = error.message;
+  });
+});
+
+$('compare').addEventListener('change', () => {
+  updateComparisonControls();
+
+  runQuery().catch(error => {
+    $('error').textContent = error.message;
+  });
+});
+
+$('compare-season').addEventListener('change', () => {
+  state.comparisonSeasonCustom = true;
+
+  runQuery().catch(error => {
     $('error').textContent = error.message;
   });
 });
