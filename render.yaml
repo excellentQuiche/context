@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: nbacontext
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python scripts/download_database.py
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: CONTEXT_DB_PATH
+        value: /opt/render/project/src/data/app/context.duckdb
+      - key: DUCKDB_MEMORY_LIMIT
+        value: 320MB
+      - key: CONTEXT_DB_URL
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false

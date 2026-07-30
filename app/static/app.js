@@ -3,6 +3,8 @@ const $ = (id) => document.getElementById(id);
 const state = {
   catalog: null,
   result: null,
+  comparison: null,
+  comparisonResult: null,
   comparisonActive: false,
   comparisonSeasonCustom: false
 };
@@ -34,6 +36,40 @@ async function json(url) {
   }
 
   return response.body;
+}
+
+function formatNumber(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+    return '—';
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 2
+  }).format(Number(value));
+}
+
+function formatDate(value) {
+  if (!value) {
+    return '—';
+  }
+
+  const [year, month, day] = value.split('-');
+
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return `${month}/${day}/${year}`;
+}
+
+function initials(name) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0])
+    .join('')
+    .toUpperCase();
 }
 
 function loadMetricOptions() {
@@ -97,11 +133,14 @@ function loadScopeOptions() {
   $('scope').value = 'window';
 }
 
-function updateCalculations() {
-  const metric = state.catalog.metrics.find(
+function selectedMetric() {
+  return state.catalog.metrics.find(
     item => item.id === $('metric').value
   );
+}
 
+function updateCalculations() {
+  const metric = selectedMetric();
   const current = $('calculation').value;
 
   $('calculation').innerHTML = metric.calculations
@@ -132,8 +171,10 @@ function updateComparisonControls() {
   $('compare-season').disabled = !active;
 
   if (!active) {
-    $('comparison-result').textContent = '';
+    state.comparison = null;
+    state.comparisonResult = null;
     state.comparisonSeasonCustom = false;
+    $('comparison-chart-panel').classList.add('hidden');
   }
 
   state.comparisonActive = active;
@@ -161,10 +202,6 @@ async function loadMeta() {
   updateCalculations();
   updateWindow();
   updateComparisonControls();
-
-  $('updated').textContent = meta.built_at
-    ? `Built ${new Date(meta.built_at).toLocaleString()}`
-    : 'Database ready';
 
   await loadPlayers();
 }
@@ -200,12 +237,22 @@ function params(extra = {}) {
 }
 
 function comparisonParams() {
-  const comparisonPlayer = $('compare').value;
+  return new URLSearchParams({
+    primary_season: $('season').value,
+    primary_player_id: $('player').value,
+    comparison_season: $('compare-season').value,
+    comparison_player_id: $('compare').value,
+    metric: $('metric').value,
+    calculation: $('calculation').value,
+    scope: $('scope').value,
+    window: $('window').value
+  });
+}
 
+function comparisonResultParams() {
   return new URLSearchParams({
     season: $('compare-season').value,
-    primary_player_id: comparisonPlayer,
-    comparison_player_id: comparisonPlayer,
+    player_id: $('compare').value,
     metric: $('metric').value,
     calculation: $('calculation').value,
     scope: $('scope').value,
@@ -228,27 +275,25 @@ async function runQuery(event, allowFallback = true) {
     ];
 
     if ($('compare').value) {
-      requests.push(
-        request(`/api/compare?${comparisonParams()}`)
-      );
+      requests.push(request(`/api/compare?${comparisonParams()}`));
+      requests.push(request(`/api/result?${comparisonResultParams()}`));
     }
 
     const responses = await Promise.all(requests);
     const resultResponse = responses[0];
-    const similarResponse = responses[1];
+    const leadersResponse = responses[1];
     const comparisonResponse = responses[2];
+    const comparisonResultResponse = responses[3];
 
-    if (!similarResponse.ok) {
+    if (!leadersResponse.ok) {
       throw new Error(
-        similarResponse.body.detail ||
-        `Leaderboard request failed (${similarResponse.status})`
+        leadersResponse.body.detail ||
+        `Leaderboard request failed (${leadersResponse.status})`
       );
     }
 
-    const similar = similarResponse.body;
-    const noSeasonResults =
-      !similar.results ||
-      similar.results.length === 0;
+    const leaders = leadersResponse.body;
+    const noSeasonResults = !leaders.results || leaders.results.length === 0;
 
     if (
       allowFallback &&
@@ -274,115 +319,241 @@ async function runQuery(event, allowFallback = true) {
       );
     }
 
-    const result = resultResponse.body;
+    state.result = resultResponse.body;
+    state.comparison = comparisonResponse ? comparisonResponse.body : null;
+    state.comparisonResult = comparisonResultResponse?.ok
+      ? comparisonResultResponse.body
+      : null;
 
-    state.result = result;
-
-    renderResult(result);
-    renderComparison(
-      comparisonResponse ? comparisonResponse.body : null
+    renderResult(
+      state.result,
+      state.comparison,
+      state.comparisonResult
     );
-    renderSimilar(similar);
+    renderLeaders(leaders);
   } catch (error) {
     $('error').textContent = error.message;
   }
 }
 
-function renderResult(result) {
+function resultDetail(player, scope, window) {
+  if (player.status === 'did_not_play') {
+    return 'Did not play';
+  }
+
+  if (player.status === 'no_qualifying_result') {
+    return 'No qualifying result';
+  }
+
+  if (scope === 'window') {
+    return `${window}-game streak`;
+  }
+
+  return `${player.games_count} games`;
+}
+
+function renderPlayerMedia(elementId, playerName, teamName) {
+  const fallback = teamName || 'NBA';
+
+  $(elementId).innerHTML = `
+    <div class="player-fallback">
+      <strong>${initials(playerName)}</strong>
+      <small>${fallback}</small>
+    </div>
+  `;
+}
+
+function renderPlayerCard(prefix, player, unit, scope, window) {
+  const seasonElement = prefix === 'comparison'
+    ? $('comparison-season-text')
+    : $('primary-season');
+
+  $(`${prefix}-name`).textContent = player.player_name;
+  seasonElement.textContent = player.season;
+  $(`${prefix}-value`).textContent =
+    player.value === null
+      ? 'Unavailable'
+      : `${formatNumber(player.value)} ${unit}`;
+  $(`${prefix}-detail`).textContent = resultDetail(
+    player,
+    scope,
+    window
+  );
+
+  renderPlayerMedia(
+    `${prefix}-media`,
+    player.player_name,
+    player.team_name
+  );
+}
+
+function chartRange(result) {
+  if (result.scope === 'window') {
+    return `${formatDate(result.start_date)}–${formatDate(result.end_date)}`;
+  }
+
+  return `${result.games_count} games`;
+}
+
+function renderResult(result, comparison, comparisonResult) {
   const calculation = state.catalog.calculations[result.calculation];
+  const metricLabel = result.metric_label;
+  const primary = {
+    player_id: result.player_id,
+    player_name: result.player_name,
+    team_name: result.team_name,
+    season: result.season,
+    status: 'played',
+    value: result.value,
+    games_count: result.games_count
+  };
 
   $('result-label').textContent = result.scope === 'window'
-    ? `BEST ${result.window}-GAME ${result.metric_label.toUpperCase()} WINDOW`
-    : `FULL-SEASON ${result.metric_label.toUpperCase()}`;
+    ? `BEST ${result.window}-GAME ${metricLabel.toUpperCase()} STREAK`
+    : `FULL-SEASON ${metricLabel.toUpperCase()} · ${calculation.toUpperCase()}`;
 
-  $('result-name').textContent = result.player_name;
+  renderPlayerCard(
+    'primary',
+    primary,
+    result.unit,
+    result.scope,
+    result.window
+  );
 
-  $('result-season').textContent =
-    `${result.season} regular season · ${calculation.toLowerCase()}`;
+  const comparing = Boolean(comparison);
+  $('scoreboard').classList.toggle('single', !comparing);
+  $('scoreboard').classList.toggle('comparison', comparing);
+  $('score-divider').classList.toggle('hidden', !comparing);
+  $('comparison-card').classList.toggle('hidden', !comparing);
+  $('comparison-chart-panel').classList.toggle('hidden', !comparing);
 
-  $('result-value').innerHTML =
-    `${Number(result.value).toFixed(1)} <span>${result.unit}</span>`;
+  if (comparing) {
+    renderPlayerCard(
+      'comparison',
+      comparison.comparison,
+      comparison.unit,
+      comparison.scope,
+      comparison.window
+    );
+  } else {
+    $('comparison-media').innerHTML = '';
+  }
 
-  $('window-date').textContent = result.scope === 'window'
-    ? `${result.start_date} to ${result.end_date}`
-    : `${result.games_count} games`;
+  $('primary-chart-title').textContent =
+    `Game-by-game ${metricLabel} — ${result.player_name} (${result.season})`;
+  $('primary-window-date').textContent = chartRange(result);
 
-  const values = result.games
-    .map(game => Number(game.chart_value))
-    .filter(Number.isFinite);
+  $('leaders-title').textContent = `${result.season} LEAGUE LEADERS`;
+  $('leaders-instruction').textContent =
+    `Click a player to see their ${metricLabel}`;
 
-  const minimum = Math.min(0, ...values);
-  const maximum = Math.max(0, ...values);
-  const range = maximum - minimum || 1;
+  renderChart(
+    result,
+    'primary-chart',
+    $('primary-show-values').checked
+  );
 
-  $('chart').innerHTML = result.games
+  if (comparing) {
+    const comparedPlayer = comparison.comparison;
+    $('comparison-chart-title').textContent =
+      `Game-by-game ${metricLabel} — ${comparedPlayer.player_name} (${comparedPlayer.season})`;
+
+    if (comparisonResult) {
+      $('comparison-window-date').textContent = chartRange(comparisonResult);
+      renderChart(
+        comparisonResult,
+        'comparison-chart',
+        $('comparison-show-values').checked
+      );
+    } else {
+      $('comparison-window-date').textContent = resultDetail(
+        comparedPlayer,
+        comparison.scope,
+        comparison.window
+      );
+      renderEmptyChart(
+        'comparison-chart',
+        resultDetail(comparedPlayer, comparison.scope, comparison.window)
+      );
+    }
+  }
+}
+
+function renderEmptyChart(chartId, message) {
+  const chart = $(chartId);
+  chart.classList.remove('show-values');
+  chart.innerHTML = `<p class="chart-empty">${message}</p>`;
+}
+
+function renderChart(result, chartId, showValues) {
+  const chart = $(chartId);
+  const numericGames = result.games.filter(
+    game => Number.isFinite(Number(game.chart_value))
+  );
+
+  if (!numericGames.length) {
+    renderEmptyChart(chartId, 'No game values available');
+    return;
+  }
+
+  const values = numericGames.map(game => Number(game.chart_value));
+  const low = Math.min(0, ...values);
+  const high = Math.max(0, ...values);
+  const range = high - low || 1;
+  const baseline = ((0 - low) / range) * 100;
+
+  chart.classList.toggle('show-values', showValues);
+  chart.style.setProperty('--baseline', `${baseline}%`);
+  chart.innerHTML = result.games
     .map(game => {
       const value = Number(game.chart_value);
       const available = Number.isFinite(value);
-      const height = available
-        ? Math.max(2, ((value - minimum) / range) * 100)
-        : 2;
-
-      const displayed = available
-        ? value.toFixed(2)
-        : 'Unavailable';
-
       const selected = game.selected ? ' selected' : '';
+      let bottom = baseline;
+      let height = 1;
+      let labelBottom = baseline;
+      let labelClass = 'positive';
+
+      if (available && value >= 0) {
+        bottom = baseline;
+        height = Math.max(1.5, (value / range) * 100);
+        labelBottom = Math.min(100, baseline + height);
+      } else if (available) {
+        bottom = ((value - low) / range) * 100;
+        height = Math.max(1.5, (-value / range) * 100);
+        labelBottom = Math.max(0, bottom);
+        labelClass = 'negative';
+      }
+
+      const title = available
+        ? `${formatDate(game.date)} vs. ${game.opponent}: ${formatNumber(value)} ${result.unit}`
+        : `${formatDate(game.date)} vs. ${game.opponent}: unavailable`;
+
+      const label = available
+        ? `<span class="bar-value ${labelClass}" style="bottom:${labelBottom}%">${formatNumber(value)}</span>`
+        : '';
 
       return `
-        <button
-          class="bar${selected}"
-          title="${game.date} vs. ${game.opponent}: ${displayed} ${result.unit}"
-          style="height:${height}%"
-        >
-          <span>${displayed}</span>
-        </button>
+        <div class="bar-slot" title="${title}">
+          <div
+            class="bar-fill${selected}"
+            style="bottom:${bottom}%;height:${height}%"
+          ></div>
+          ${label}
+        </div>
       `;
     })
     .join('');
 }
 
-function renderComparison(data) {
-  if (!data) {
-    $('comparison-result').textContent = '';
-    return;
-  }
-
-  const player = data.primary;
-  const season = data.season;
-  const prefix = `vs. ${player.player_name} (${season}): `;
-
-  if (player.status === 'did_not_play') {
-    if (player.value !== null) {
-      $('comparison-result').textContent =
-        `${prefix}${Number(player.value).toFixed(1)} ${data.unit} · did not play`;
-    } else {
-      $('comparison-result').textContent =
-        `${prefix}unavailable · did not play`;
-    }
-
-    return;
-  }
-
-  if (player.status === 'no_qualifying_result') {
-    $('comparison-result').textContent =
-      `${prefix}no qualifying result`;
-
-    return;
-  }
-
-  $('comparison-result').textContent =
-    `${prefix}${Number(player.value).toFixed(1)} ${data.unit}`;
-}
-
-function renderSimilar(data) {
+function renderLeaders(data) {
   $('results').innerHTML = data.results
     .map(row => `
       <button class="row" data-player="${row.player_id}">
         <span>${row.rank}</span>
         <b>${row.player_name}</b>
-        <span>${Number(row.value).toFixed(1)} ${data.unit}</span>
-        <span>${row.end_date}</span>
+        <span>${formatNumber(row.value)} ${data.unit}</span>
+        <span>${formatDate(row.end_date)}</span>
       </button>
     `)
     .join('');
@@ -391,12 +562,13 @@ function renderSimilar(data) {
     row.addEventListener('click', async () => {
       $('player').value = row.dataset.player;
       await runQuery();
-      window.scrollTo({ top: 150, behavior: 'smooth' });
+      window.scrollTo({ top: 120, behavior: 'smooth' });
     });
   });
 }
 
 $('controls').addEventListener('submit', runQuery);
+$('export').addEventListener('click', event => event.preventDefault());
 
 $('season').addEventListener('change', () => {
   if ($('compare').value && !state.comparisonSeasonCustom) {
@@ -424,12 +596,27 @@ $('compare-season').addEventListener('change', () => {
   });
 });
 
-$('metric').addEventListener('change', () => {
-  updateCalculations();
+$('metric').addEventListener('change', updateCalculations);
+$('scope').addEventListener('change', updateWindow);
+
+$('primary-show-values').addEventListener('change', () => {
+  if (state.result) {
+    renderChart(
+      state.result,
+      'primary-chart',
+      $('primary-show-values').checked
+    );
+  }
 });
 
-$('scope').addEventListener('change', () => {
-  updateWindow();
+$('comparison-show-values').addEventListener('change', () => {
+  if (state.comparisonResult) {
+    renderChart(
+      state.comparisonResult,
+      'comparison-chart',
+      $('comparison-show-values').checked
+    );
+  }
 });
 
 loadMeta().catch(error => {
