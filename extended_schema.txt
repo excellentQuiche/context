@@ -1,0 +1,174 @@
+Base size: 389,667,759 bytes
+Extended size: 453,323,778 bytes
+Base columns: 40
+Extended columns: 110
+Shared columns: 39
+Extended-only columns: 71
+
+Extended-only columns
+blocksAgainst
+foulsAgainst
+doubleDouble
+tripleDouble
+estimatedOffensiveRating
+offensiveRating
+spWorkOffensiveRating
+estimatedDefensiveRating
+defensiveRating
+spWorkDefensiveRating
+estimatedNetRating
+netRating
+spWorkNetRating
+assistPercentage
+assistToTurnoverRatio
+assistRatio
+offensiveReboundPercentage
+defensiveReboundPercentage
+reboundPercentage
+teamTurnoverPercentage
+estimatedTurnoverPercentage
+effectiveFieldGoalPercentage
+trueShootingPercentage
+usagePercentage
+estimatedUsagePercentage
+estimatedPace
+pace
+pacePer40
+spWorkPace
+playerImpactEstimate
+possessions
+pointsOffTurnovers
+pointsSecondChance
+pointsFastBreak
+pointsInPaint
+opponentPointsOffTurnovers
+opponentPointsSecondChance
+opponentPointsFastBreak
+opponentPointsInPaint
+percentFieldGoalAttempts2Point
+percentFieldGoalAttempts3Point
+percentPoints2Point
+percentPoints2PointMidRange
+percentPoints3Point
+percentPointsFastBreak
+percentPointsFreeThrow
+percentPointsOffTurnovers
+percentPointsInPaint
+percentAssisted2PointMade
+percentUnassisted2PointMade
+percentAssisted3PointMade
+percentUnassisted3PointMade
+percentAssistedFieldGoalsMade
+percentUnassistedFieldGoalsMade
+percentTeamFieldGoalsMade
+percentTeamFieldGoalsAttempted
+percentTeamThreePointersMade
+percentTeamThreePointersAttempted
+percentTeamFreeThrowsMade
+percentTeamFreeThrowsAttempted
+percentTeamOffensiveRebounds
+percentTeamDefensiveRebounds
+percentTeamRebounds
+percentTeamAssists
+percentTeamTurnovers
+percentTeamSteals
+percentTeamBlocks
+percentTeamBlocksAgainst
+percentTeamFoulsPersonal
+percentTeamFoulsDrawn
+percentTeamPoints
+
+Extended-only sample values
+blocksAgainst: '0'
+foulsAgainst: '2'
+doubleDouble: '0'
+tripleDouble: '0'
+estimatedOffensiveRating: '102.0'
+offensiveRating: '107.7'
+spWorkOffensiveRating: '107.7'
+estimatedDefensiveRating: '93.8'
+defensiveRating: '94.9'
+spWorkDefensiveRating: '94.9'
+estimatedNetRating: '8.2'
+netRating: '12.8'
+spWorkNetRating: '12.8'
+assistPercentage: '0.143'
+assistToTurnoverRatio: '0.0'
+assistRatio: '40.0'
+offensiveReboundPercentage: '0.231'
+defensiveReboundPercentage: '0.182'
+reboundPercentage: '0.208'
+teamTurnoverPercentage: '0.0'
+estimatedTurnoverPercentage: '0.0'
+effectiveFieldGoalPercentage: '0.5'
+trueShootingPercentage: '0.347'
+usagePercentage: '0.059'
+estimatedUsagePercentage: '0.06'
+estimatedPace: '96.82'
+pace: '93.7'
+pacePer40: '78.08'
+spWorkPace: '93.7'
+playerImpactEstimate: '0.124'
+possessions: '39'
+pointsOffTurnovers: '0'
+pointsSecondChance: '2'
+pointsFastBreak: '0'
+pointsInPaint: '2'
+opponentPointsOffTurnovers: '11.0'
+opponentPointsSecondChance: '7.0'
+opponentPointsFastBreak: '5.0'
+opponentPointsInPaint: '16.0'
+percentFieldGoalAttempts2Point: '1.0'
+percentFieldGoalAttempts3Point: '0.0'
+percentPoints2Point: '1.0'
+percentPoints2PointMidRange: '0.0'
+percentPoints3Point: '0.0'
+percentPointsFastBreak: '0.0'
+percentPointsFreeThrow: '0.0'
+percentPointsOffTurnovers: '0.0'
+percentPointsInPaint: '1.0'
+percentAssisted2PointMade: '0.0'
+percentUnassisted2PointMade: '1.0'
+percentAssisted3PointMade: '0.0'
+percentUnassisted3PointMade: '0.0'
+percentAssistedFieldGoalsMade: '0.0'
+percentUnassistedFieldGoalsMade: '1.0'
+percentTeamFieldGoalsMade: '0.067'
+percentTeamFieldGoalsAttempted: '0.053'
+percentTeamThreePointersMade: '0.0'
+percentTeamThreePointersAttempted: '0.0'
+percentTeamFreeThrowsMade: '0.0'
+percentTeamFreeThrowsAttempted: '0.143'
+percentTeamOffensiveRebounds: '0.857'
+percentTeamDefensiveRebounds: '0.235'
+percentTeamRebounds: '0.417'
+percentTeamAssists: '0.5'
+percentTeamTurnovers: '0.0'
+percentTeamSteals: '0.0'
+percentTeamBlocks: '0.0'
+percentTeamBlocksAgainst: '0.0'
+percentTeamFoulsPersonal: '0.2'
+percentTeamFoulsDrawn: '0.154'
+percentTeamPoints: '0.048'
+
+Players.csv columns: 20
+personId
+firstName
+lastName
+birthDate
+school
+country
+heightInches
+bodyWeightLbs
+jersey
+guard
+forward
+center
+dleagueFlag
+nbaFlag
+gamesPlayedFlag
+draftYear
+draftRound
+draftNumber
+fromYear
+toYear

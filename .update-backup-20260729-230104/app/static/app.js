@@ -4,9 +4,9 @@ const state = {
   catalog: null,
   result: null,
   comparison: null,
-  comparisonResult: null,
   comparisonActive: false,
-  comparisonSeasonCustom: false
+  comparisonSeasonCustom: false,
+  imageCache: new Map()
 };
 
 async function request(url) {
@@ -96,23 +96,19 @@ function loadMetricOptions() {
   $('metric').value = 'pts';
 }
 
-function playerLabel(player) {
-  if (player.from_year && player.to_year) {
-    return `${player.name} (${player.from_year}–${player.to_year})`;
-  }
-
-  if (player.from_year) {
-    return `${player.name} (${player.from_year})`;
-  }
-
-  return player.name;
-}
-
 function loadComparisonPlayers(players) {
   const options = players
-    .map(player =>
-      `<option value="${player.id}">${playerLabel(player)}</option>`
-    )
+    .map(player => {
+      let years = '';
+
+      if (player.from_year && player.to_year) {
+        years = ` (${player.from_year}–${player.to_year})`;
+      } else if (player.from_year) {
+        years = ` (${player.from_year})`;
+      }
+
+      return `<option value="${player.id}">${player.name}${years}</option>`;
+    })
     .join('');
 
   $('compare').innerHTML =
@@ -176,9 +172,7 @@ function updateComparisonControls() {
 
   if (!active) {
     state.comparison = null;
-    state.comparisonResult = null;
     state.comparisonSeasonCustom = false;
-    $('comparison-chart-panel').classList.add('hidden');
   }
 
   state.comparisonActive = active;
@@ -215,9 +209,7 @@ async function loadPlayers(preferred) {
   const players = await json(`/api/players?season=${season}`);
 
   $('player').innerHTML = players
-    .map(player =>
-      `<option value="${player.id}">${playerLabel(player)}</option>`
-    )
+    .map(player => `<option value="${player.id}">${player.name}</option>`)
     .join('');
 
   if (
@@ -255,17 +247,6 @@ function comparisonParams() {
   });
 }
 
-function comparisonResultParams() {
-  return new URLSearchParams({
-    season: $('compare-season').value,
-    player_id: $('compare').value,
-    metric: $('metric').value,
-    calculation: $('calculation').value,
-    scope: $('scope').value,
-    window: $('window').value
-  });
-}
-
 async function runQuery(event, allowFallback = true) {
   event?.preventDefault();
   $('error').textContent = '';
@@ -282,14 +263,12 @@ async function runQuery(event, allowFallback = true) {
 
     if ($('compare').value) {
       requests.push(request(`/api/compare?${comparisonParams()}`));
-      requests.push(request(`/api/result?${comparisonResultParams()}`));
     }
 
     const responses = await Promise.all(requests);
     const resultResponse = responses[0];
     const leadersResponse = responses[1];
     const comparisonResponse = responses[2];
-    const comparisonResultResponse = responses[3];
 
     if (!leadersResponse.ok) {
       throw new Error(
@@ -327,15 +306,8 @@ async function runQuery(event, allowFallback = true) {
 
     state.result = resultResponse.body;
     state.comparison = comparisonResponse ? comparisonResponse.body : null;
-    state.comparisonResult = comparisonResultResponse?.ok
-      ? comparisonResultResponse.body
-      : null;
 
-    renderResult(
-      state.result,
-      state.comparison,
-      state.comparisonResult
-    );
+    renderResult(state.result, state.comparison);
     renderLeaders(leaders);
   } catch (error) {
     $('error').textContent = error.message;
@@ -358,137 +330,6 @@ function resultDetail(player, scope, window) {
   return `${player.games_count} games`;
 }
 
-function renderPlayerFallback(container, player) {
-  const fallback = document.createElement('div');
-  const name = document.createElement('strong');
-  const team = document.createElement('small');
-
-  fallback.className = 'player-fallback';
-  name.textContent = initials(player.player_name);
-  team.textContent = player.team_name || 'NBA';
-
-  fallback.append(name, team);
-  container.replaceChildren(fallback);
-}
-
-function renderPlayerMedia(elementId, player) {
-  const container = $(elementId);
-  const token = [
-    player.player_id,
-    player.team_id || 'none',
-    Date.now(),
-    Math.random()
-  ].join('-');
-
-  container.dataset.mediaToken = token;
-  container.replaceChildren();
-
-  container.style.position = 'relative';
-  container.style.overflow = 'hidden';
-
-  const isCurrent = () =>
-    container.dataset.mediaToken === token;
-
-  const loadImage = (source, className, styles) =>
-    new Promise((resolve, reject) => {
-      const image = new Image();
-
-      image.className = className;
-      image.alt = '';
-      image.setAttribute('aria-hidden', 'true');
-      image.draggable = false;
-      image.decoding = 'async';
-
-      Object.assign(image.style, styles);
-
-      image.addEventListener(
-        'load',
-        () => resolve(image),
-        { once: true }
-      );
-
-      image.addEventListener(
-        'error',
-        () => reject(new Error(`Image unavailable: ${source}`)),
-        { once: true }
-      );
-
-      image.src = source;
-    });
-
-  const logoPromise = player.team_id
-    ? loadImage(
-        `https://cdn.nba.com/logos/nba/${player.team_id}/primary/L/logo.svg`,
-        'player-team-logo-only',
-        {
-          position: 'absolute',
-          inset: '0',
-          zIndex: '1',
-          display: 'block',
-          width: '78%',
-          height: '78%',
-          margin: 'auto',
-          objectFit: 'contain',
-          objectPosition: 'center',
-          opacity: '1',
-          pointerEvents: 'none'
-        }
-      )
-    : null;
-
-  const portraitPromise = loadImage(
-    `https://cdn.nba.com/headshots/nba/latest/260x190/${player.player_id}.png`,
-    'player-headshot',
-    {
-      position: 'absolute',
-      inset: '0',
-      zIndex: '2',
-      display: 'block',
-      width: '100%',
-      height: '100%',
-      objectFit: 'contain',
-      objectPosition: 'center bottom',
-      opacity: '0',
-      transition: 'opacity 140ms ease',
-      pointerEvents: 'none'
-    }
-  );
-
-  const renderImages = async () => {
-    if (logoPromise) {
-      try {
-        const logo = await logoPromise;
-
-        if (!isCurrent()) {
-          return;
-        }
-
-        container.append(logo);
-      } catch {
-      }
-    }
-
-    try {
-      const portrait = await portraitPromise;
-
-      if (!isCurrent()) {
-        return;
-      }
-
-      container.append(portrait);
-
-      requestAnimationFrame(() => {
-        if (isCurrent()) {
-          portrait.style.opacity = '1';
-        }
-      });
-    } catch {
-    }
-  };
-
-  renderImages();
-}
-
 function renderPlayerCard(prefix, player, unit, scope, window) {
   const seasonElement = prefix === 'comparison'
     ? $('comparison-season-text')
@@ -506,27 +347,21 @@ function renderPlayerCard(prefix, player, unit, scope, window) {
     window
   );
 
-  renderPlayerMedia(
+  loadPlayerMedia(
     `${prefix}-media`,
-    player
+    player.player_id,
+    player.season,
+    player.player_name,
+    player.team_name
   );
 }
 
-function chartRange(result) {
-  if (result.scope === 'window') {
-    return `${formatDate(result.start_date)}–${formatDate(result.end_date)}`;
-  }
-
-  return `${result.games_count} games`;
-}
-
-function renderResult(result, comparison, comparisonResult) {
+function renderResult(result, comparison) {
   const calculation = state.catalog.calculations[result.calculation];
   const metricLabel = result.metric_label;
   const primary = {
     player_id: result.player_id,
     player_name: result.player_name,
-    team_id: result.team_id,
     team_name: result.team_name,
     season: result.season,
     status: 'played',
@@ -551,7 +386,6 @@ function renderResult(result, comparison, comparisonResult) {
   $('scoreboard').classList.toggle('comparison', comparing);
   $('score-divider').classList.toggle('hidden', !comparing);
   $('comparison-card').classList.toggle('hidden', !comparing);
-  $('comparison-chart-panel').classList.toggle('hidden', !comparing);
 
   if (comparing) {
     renderPlayerCard(
@@ -565,99 +399,49 @@ function renderResult(result, comparison, comparisonResult) {
     $('comparison-media').innerHTML = '';
   }
 
-  $('primary-chart-title').textContent =
-    `Game-by-game ${metricLabel} — ${result.player_name} (${result.season})`;
-  $('primary-window-date').textContent = chartRange(result);
+  $('window-date').textContent = result.scope === 'window'
+    ? `${formatDate(result.start_date)}–${formatDate(result.end_date)}`
+    : `${result.games_count} games`;
 
-  $('leaders-title').textContent = `${result.season} LEAGUE LEADERS`;
+  $('chart-title').textContent = `Game-by-game ${metricLabel}`;
+  $('leaders-title').textContent = `${result.season} leaders`;
   $('leaders-instruction').textContent =
     `Click a player to see their ${metricLabel}`;
 
-  renderChart(
-    result,
-    'primary-chart',
-    $('primary-show-values').checked
-  );
-
-  if (comparing) {
-    const comparedPlayer = comparison.comparison;
-    $('comparison-chart-title').textContent =
-      `Game-by-game ${metricLabel} — ${comparedPlayer.player_name} (${comparedPlayer.season})`;
-
-    if (comparisonResult) {
-      $('comparison-window-date').textContent = chartRange(comparisonResult);
-      renderChart(
-        comparisonResult,
-        'comparison-chart',
-        $('comparison-show-values').checked
-      );
-    } else {
-      $('comparison-window-date').textContent = resultDetail(
-        comparedPlayer,
-        comparison.scope,
-        comparison.window
-      );
-      renderEmptyChart(
-        'comparison-chart',
-        resultDetail(comparedPlayer, comparison.scope, comparison.window)
-      );
-    }
-  }
+  renderChart(result);
+  updateImageCredits();
 }
 
-function renderEmptyChart(chartId, message) {
-  const chart = $(chartId);
-  chart.classList.remove('show-values');
-  chart.innerHTML = `<p class="chart-empty">${message}</p>`;
-}
-
-function renderChart(result, chartId, showValues) {
-  const chart = $(chartId);
+function renderChart(result) {
   const numericGames = result.games.filter(
     game => Number.isFinite(Number(game.chart_value))
   );
-
-  if (!numericGames.length) {
-    renderEmptyChart(chartId, 'No game values available');
-    return;
-  }
-
   const values = numericGames.map(game => Number(game.chart_value));
   const low = Math.min(0, ...values);
   const high = Math.max(0, ...values);
   const range = high - low || 1;
   const baseline = ((0 - low) / range) * 100;
 
-  chart.classList.toggle('show-values', showValues);
-  chart.style.setProperty('--baseline', `${baseline}%`);
-  chart.innerHTML = result.games
+  $('chart').style.setProperty('--baseline', `${baseline}%`);
+  $('chart').innerHTML = result.games
     .map(game => {
       const value = Number(game.chart_value);
       const available = Number.isFinite(value);
       const selected = game.selected ? ' selected' : '';
       let bottom = baseline;
       let height = 1;
-      let labelBottom = baseline;
-      let labelClass = 'positive';
 
       if (available && value >= 0) {
         bottom = baseline;
         height = Math.max(1.5, (value / range) * 100);
-        labelBottom = Math.min(100, baseline + height);
       } else if (available) {
         bottom = ((value - low) / range) * 100;
         height = Math.max(1.5, (-value / range) * 100);
-        labelBottom = Math.max(0, bottom);
-        labelClass = 'negative';
       }
 
       const title = available
         ? `${formatDate(game.date)} vs. ${game.opponent}: ${formatNumber(value)} ${result.unit}`
         : `${formatDate(game.date)} vs. ${game.opponent}: unavailable`;
-
-      const label = available
-        ? `<span class="bar-value ${labelClass}" style="bottom:${labelBottom}%">${formatNumber(value)}</span>`
-        : '';
 
       return `
         <div class="bar-slot" title="${title}">
@@ -665,7 +449,6 @@ function renderChart(result, chartId, showValues) {
             class="bar-fill${selected}"
             style="bottom:${bottom}%;height:${height}%"
           ></div>
-          ${label}
         </div>
       `;
     })
@@ -693,7 +476,97 @@ function renderLeaders(data) {
   });
 }
 
+async function imageData(playerId, season) {
+  const key = `${playerId}:${season}`;
+
+  if (!state.imageCache.has(key)) {
+    state.imageCache.set(
+      key,
+      json(
+        `/api/player-image?player_id=${encodeURIComponent(playerId)}` +
+        `&season=${encodeURIComponent(season)}`
+      ).catch(() => ({ image: null }))
+    );
+  }
+
+  return state.imageCache.get(key);
+}
+
+async function loadPlayerMedia(
+  elementId,
+  playerId,
+  season,
+  playerName,
+  teamName
+) {
+  const element = $(elementId);
+  const fallback = teamName || 'NBA';
+
+  element.dataset.credit = '';
+  element.innerHTML = `
+    <div class="player-fallback">
+      <strong>${initials(playerName)}</strong>
+      <small>${fallback}</small>
+    </div>
+  `;
+
+  const data = await imageData(playerId, season);
+
+  if (!data.image || !data.image.url) {
+    updateImageCredits();
+    return;
+  }
+
+  element.dataset.credit =
+    `${data.image.credit} · ${data.image.license} · ${data.image.source_url}`;
+
+  element.innerHTML = `
+    <img src="${data.image.url}" alt="${playerName}">
+  `;
+
+  updateImageCredits();
+}
+
+function updateImageCredits() {
+  const credits = ['primary-media', 'comparison-media']
+    .map(id => $(id).dataset.credit)
+    .filter(Boolean);
+
+  const unique = [...new Set(credits)];
+
+  $('image-credits').innerHTML = unique
+    .map(credit => {
+      const parts = credit.split(' · ');
+      const source = parts.pop();
+      const label = parts.join(' · ');
+      return `<a href="${source}" target="_blank" rel="noreferrer">Photo: ${label}</a>`;
+    })
+    .join(' · ');
+}
+
+function exportPdf() {
+  if (!state.result) {
+    return;
+  }
+
+  const previousTitle = document.title;
+  const comparisonName = state.comparison
+    ? ` vs ${state.comparison.comparison.player_name}`
+    : '';
+
+  document.title =
+    `NBAContext - ${state.result.player_name}${comparisonName} - ` +
+    `${state.result.metric_label}`;
+
+  window.print();
+
+  window.setTimeout(() => {
+    document.title = previousTitle;
+  }, 500);
+}
+
 $('controls').addEventListener('submit', runQuery);
+$('export').addEventListener('click', exportPdf);
 
 $('season').addEventListener('change', () => {
   if ($('compare').value && !state.comparisonSeasonCustom) {
@@ -723,26 +596,6 @@ $('compare-season').addEventListener('change', () => {
 
 $('metric').addEventListener('change', updateCalculations);
 $('scope').addEventListener('change', updateWindow);
-
-$('primary-show-values').addEventListener('change', () => {
-  if (state.result) {
-    renderChart(
-      state.result,
-      'primary-chart',
-      $('primary-show-values').checked
-    );
-  }
-});
-
-$('comparison-show-values').addEventListener('change', () => {
-  if (state.comparisonResult) {
-    renderChart(
-      state.comparisonResult,
-      'comparison-chart',
-      $('comparison-show-values').checked
-    );
-  }
-});
 
 loadMeta().catch(error => {
   $('error').textContent = error.message;

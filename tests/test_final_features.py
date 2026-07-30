@@ -82,6 +82,9 @@ def test_revised_dashboard_structure():
     root = DB_PATH.parents[2]
     html = (root / "app" / "static" / "index.html").read_text()
     javascript = (root / "app" / "static" / "app.js").read_text()
+    search_javascript = (
+        root / "app" / "static" / "search.js"
+    ).read_text()
     stylesheet = (root / "app" / "static" / "style.css").read_text()
 
     assert "What's in (or not in) a bar chart?" in html
@@ -90,7 +93,51 @@ def test_revised_dashboard_structure():
     assert 'id="comparison-chart"' in html
     assert 'id="primary-show-values"' in html
     assert 'id="comparison-show-values"' in html
-    assert 'aria-disabled="true"' in html
+    assert 'id="export"' not in html
+    assert 'id="player-search"' in html
+    assert 'id="compare-search"' in html
+    assert "normalizePlayerSearch" in search_javascript
     assert "LEAGUE LEADERS" in javascript
     assert "window.print" not in javascript
     assert "1880px" in stylesheet
+
+
+def test_season_players_include_career_years():
+    meta = client.get("/api/meta")
+
+    assert meta.status_code == 200
+
+    season = meta.json()["seasons"][0]
+    response = client.get(
+        "/api/players",
+        params={"season": season},
+    )
+
+    assert response.status_code == 200
+
+    players = response.json()
+
+    assert players
+    assert any(
+        player["from_year"] is not None
+        and player["to_year"] is not None
+        for player in players
+    )
+
+
+def test_player_media_fallback_chain():
+    root = DB_PATH.parents[2]
+    javascript = (
+        root / "app" / "static" / "app.js"
+    ).read_text()
+    stylesheet = (
+        root / "app" / "static" / "style.css"
+    ).read_text()
+
+    assert (
+        "cdn.nba.com/headshots/nba/latest/260x190"
+        in javascript
+    )
+    assert "cdn.nba.com/logos/nba" in javascript
+    assert "player-headshot" in stylesheet
+    assert "team-logo" in stylesheet

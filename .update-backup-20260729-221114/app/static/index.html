@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Context</title>
+  <link
+    rel="icon"
+    type="image/svg+xml"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>"
+  >
+  <link rel="stylesheet" href="/static/style.css?v=4">
+</head>
+<body>
+  <header>
+    <b><i>●</i> Context<span>Lab</span></b>
+    <small id="updated">Loading database…</small>
+  </header>
+
+  <main>
+    <div class="heading">
+      <h1>NBA statistical explorer</h1>
+      <p>Rolling-window results from game-level data.</p>
+    </div>
+
+    <form id="controls">
+      <label>
+        Season
+        <select id="season"></select>
+      </label>
+
+      <label>
+        Player
+        <select id="player"></select>
+      </label>
+
+      <label>
+        Compare with
+        <select id="compare"></select>
+      </label>
+
+      <label id="compare-season-label" class="hidden">
+        Compare season
+        <select id="compare-season" disabled></select>
+      </label>
+
+      <label>
+        Statistic
+        <select id="metric"></select>
+      </label>
+
+      <label>
+        Calculation
+        <select id="calculation"></select>
+      </label>
+
+      <label>
+        Scope
+        <select id="scope"></select>
+      </label>
+
+      <label>
+        Window
+        <input id="window" type="number" min="2" max="20" value="2">
+      </label>
+
+      <button>Run query</button>
+    </form>
+
+    <section class="summary">
+      <div>
+        <small id="result-label">BEST WINDOW</small>
+        <h2 id="result-name">—</h2>
+        <p id="result-season">—</p>
+        <p id="comparison-result" class="comparison-result"></p>
+      </div>
+      <strong id="result-value">—</strong>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">
+        <h2>Game values</h2>
+        <span id="window-date"></span>
+      </div>
+      <div id="chart" class="chart"></div>
+    </section>
+
+    <section class="panel similar">
+      <div class="panel-title">
+        <h2>Similar results</h2>
+        <span>Click a row to inspect it</span>
+      </div>
+      <div class="row head">
+        <span>Rank</span>
+        <span>Player</span>
+        <span>Value</span>
+        <span>End date</span>
+      </div>
+      <div id="results"></div>
+    </section>
+
+    <p id="error" role="alert"></p>
+  </main>
+
+  <script src="/static/app.js?v=5"></script>
+</body>
+</html>

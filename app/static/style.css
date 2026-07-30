@@ -207,10 +207,21 @@ form button.is-disabled:hover {
 }
 
 .player-media img {
+  display: block;
+}
+
+.player-media img.player-headshot {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center top;
+  object-fit: contain;
+  object-position: center bottom;
+}
+
+.player-media img.team-logo {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+  object-position: center;
 }
 
 .player-fallback {
@@ -543,5 +554,78 @@ footer {
 
   .row > :last-child {
     display: none;
+  }
+}
+
+form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  overflow: visible;
+}
+
+form > label,
+form > button {
+  min-width: 0;
+}
+
+.control-season {
+  flex: 0 0 110px;
+}
+
+.control-player {
+  flex: 1 1 260px;
+  min-width: 240px;
+}
+
+.control-compare {
+  flex: 1 1 300px;
+  min-width: 280px;
+}
+
+.control-compare-season {
+  flex: 0 0 140px;
+}
+
+.control-metric {
+  flex: 1 1 260px;
+  min-width: 250px;
+}
+
+.control-calculation {
+  flex: 1 1 220px;
+  min-width: 210px;
+}
+
+.control-scope {
+  flex: 0 1 180px;
+}
+
+.control-games {
+  flex: 0 0 85px;
+}
+
+.control-go {
+  flex: 0 0 72px;
+}
+
+.source-select {
+  display: none;
+}
+
+@media (max-width: 850px) {
+  form {
+    align-items: stretch;
+  }
+
+  form > label,
+  form > button {
+    flex: 1 1 220px;
+  }
+
+  .control-games,
+  .control-go {
+    flex: 1 1 110px;
   }
 }

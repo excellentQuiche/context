@@ -32,14 +32,7 @@ def connection():
             detail="Database not available. Build it locally or configure CONTEXT_DB_PATH.",
         )
 
-    db = duckdb.connect(str(DB_PATH), read_only=True)
-    db.execute(
-        "SET memory_limit = ?",
-        [os.environ.get("DUCKDB_MEMORY_LIMIT", "320MB")],
-    )
-    db.execute("SET threads = 1")
-    db.execute("SET preserve_insertion_order = false")
-    return db
+    return duckdb.connect(str(DB_PATH), read_only=True)
 
 
 def resolve_metric(metric, calculation):
@@ -715,58 +708,20 @@ def players(season: str):
     with connection() as db:
         rows = db.execute(
             """
-            WITH season_players AS (
-                SELECT
-                    player_id,
-                    max(player_name) AS player_name
-                FROM player_games
-                WHERE season_year = ?
-                  AND season_type = 'Regular Season'
-                GROUP BY player_id
-            ),
-            game_careers AS (
-                SELECT
-                    player_id,
-                    cast(
-                        min(extract(year FROM game_date))
-                        AS INTEGER
-                    ) AS from_year,
-                    cast(
-                        max(extract(year FROM game_date))
-                        AS INTEGER
-                    ) AS to_year
-                FROM player_games
-                GROUP BY player_id
-            )
-            SELECT
-                season_players.player_id,
-                season_players.player_name,
-                coalesce(
-                    players.from_year,
-                    game_careers.from_year
-                ) AS from_year,
-                coalesce(
-                    players.to_year,
-                    game_careers.to_year
-                ) AS to_year
-            FROM season_players
-            LEFT JOIN players
-              ON players.player_id = season_players.player_id
-            LEFT JOIN game_careers
-              ON game_careers.player_id = season_players.player_id
-            ORDER BY season_players.player_name
+            SELECT DISTINCT
+                player_id,
+                player_name
+            FROM player_games
+            WHERE season_year = ?
+              AND season_type = 'Regular Season'
+            ORDER BY player_name
             """,
             [season],
         ).fetchall()
 
     return [
-        {
-            "id": player_id,
-            "name": player_name,
-            "from_year": from_year,
-            "to_year": to_year,
-        }
-        for player_id, player_name, from_year, to_year in rows
+        {"id": player_id, "name": player_name}
+        for player_id, player_name in rows
     ]
 
 

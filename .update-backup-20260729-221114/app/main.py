@@ -1,12 +1,6 @@
-import html
-import os
-import re
-from functools import lru_cache
 from pathlib import Path
-from urllib.parse import quote
 
 import duckdb
-import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,14 +8,10 @@ from fastapi.staticfiles import StaticFiles
 from app.metrics import CALCULATIONS, LEGACY_METRICS, METRICS, SCOPES
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DB_PATH = ROOT / "data" / "app" / "context.duckdb"
-DB_PATH = Path(os.environ.get("CONTEXT_DB_PATH", DEFAULT_DB_PATH))
+DB_PATH = ROOT / "data" / "app" / "context.duckdb"
 STATIC_PATH = ROOT / "app" / "static"
-WIKIMEDIA_API = "https://en.wikipedia.org/w/api.php"
-COMMONS_API = "https://commons.wikimedia.org/w/api.php"
-USER_AGENT = "NBAContext/1.0 educational basketball statistics project"
 
-app = FastAPI(title="NBAContext")
+app = FastAPI(title="Context")
 app.mount("/static", StaticFiles(directory=STATIC_PATH), name="static")
 
 
@@ -29,17 +19,10 @@ def connection():
     if not DB_PATH.exists():
         raise HTTPException(
             status_code=503,
-            detail="Database not available. Build it locally or configure CONTEXT_DB_PATH.",
+            detail="Database not built. Run scripts/build_database.py first.",
         )
 
-    db = duckdb.connect(str(DB_PATH), read_only=True)
-    db.execute(
-        "SET memory_limit = ?",
-        [os.environ.get("DUCKDB_MEMORY_LIMIT", "320MB")],
-    )
-    db.execute("SET threads = 1")
-    db.execute("SET preserve_insertion_order = false")
-    return db
+    return duckdb.connect(str(DB_PATH), read_only=True)
 
 
 def resolve_metric(metric, calculation):
@@ -105,10 +88,13 @@ def aggregate_plan(spec, calculation, over=None, window=None):
 
     kind = spec["kind"]
     scale = spec["scale"]
-    selections = [f"{aggregate('count', '*')} AS games_in_scope"]
+    selections = [
+        f"{aggregate('count', '*')} AS games_in_scope",
+    ]
 
     if kind == "count":
         expression = spec["expression"]
+
         selections.extend(
             [
                 f"{aggregate('count', expression)} AS observations",
@@ -119,20 +105,27 @@ def aggregate_plan(spec, calculation, over=None, window=None):
         if calculation == "per_game":
             value = "metric_sum / observations"
             valid = "observations > 0"
+
         elif calculation == "total":
             value = "metric_sum"
             valid = "observations > 0"
+
         elif calculation == "per_36":
             weight = f"CASE WHEN ({expression}) IS NOT NULL THEN minutes END"
-            selections.append(f"{aggregate('sum', weight)} AS weight_sum")
+            selections.append(
+                f"{aggregate('sum', weight)} AS weight_sum"
+            )
             value = "metric_sum * 36.0 / weight_sum"
             valid = "observations > 0 AND weight_sum > 0"
+
         else:
             weight = (
                 f"CASE WHEN ({expression}) IS NOT NULL "
                 "THEN possessions END"
             )
-            selections.append(f"{aggregate('sum', weight)} AS weight_sum")
+            selections.append(
+                f"{aggregate('sum', weight)} AS weight_sum"
+            )
             value = "metric_sum * 100.0 / weight_sum"
             valid = "observations > 0 AND weight_sum > 0"
 
@@ -147,28 +140,49 @@ def aggregate_plan(spec, calculation, over=None, window=None):
 
             selections.extend(
                 [
-                    f"{aggregate('count', f'CASE WHEN {available} THEN 1 END')} AS observations",
-                    f"{aggregate('sum', f'CASE WHEN {available} THEN ({numerator}) END')} AS numerator_sum",
-                    f"{aggregate('sum', f'CASE WHEN {available} THEN ({denominator}) END')} AS denominator_sum",
+                    f"""
+                    {aggregate(
+                        'count',
+                        f'CASE WHEN {available} THEN 1 END',
+                    )} AS observations
+                    """,
+                    f"""
+                    {aggregate(
+                        'sum',
+                        f'CASE WHEN {available} THEN ({numerator}) END',
+                    )} AS numerator_sum
+                    """,
+                    f"""
+                    {aggregate(
+                        'sum',
+                        f'CASE WHEN {available} THEN ({denominator}) END',
+                    )} AS denominator_sum
+                    """,
                 ]
             )
 
             value = f"numerator_sum / denominator_sum * {scale}"
             valid = "observations > 0 AND denominator_sum > 0"
+
         else:
             expression = spec["column"]
+
             selections.extend(
                 [
                     f"{aggregate('count', expression)} AS observations",
                     f"{aggregate('avg', expression)} AS metric_average",
                 ]
             )
+
             value = f"metric_average * {scale}"
             valid = "observations > 0"
 
     else:
         expression = spec["expression"]
-        selections.append(f"{aggregate('count', expression)} AS observations")
+
+        selections.append(
+            f"{aggregate('count', expression)} AS observations"
+        )
 
         if calculation == "game_average":
             selections.append(
@@ -176,6 +190,7 @@ def aggregate_plan(spec, calculation, over=None, window=None):
             )
             value = f"metric_average * {scale}"
             valid = "observations > 0"
+
         elif calculation == "minute_weighted":
             weighted = (
                 f"CASE WHEN ({expression}) IS NOT NULL "
@@ -185,14 +200,17 @@ def aggregate_plan(spec, calculation, over=None, window=None):
                 f"CASE WHEN ({expression}) IS NOT NULL "
                 "THEN minutes END"
             )
+
             selections.extend(
                 [
                     f"{aggregate('sum', weighted)} AS weighted_sum",
                     f"{aggregate('sum', weight)} AS weight_sum",
                 ]
             )
+
             value = f"weighted_sum / weight_sum * {scale}"
             valid = "observations > 0 AND weight_sum > 0"
+
         else:
             weighted = (
                 f"CASE WHEN ({expression}) IS NOT NULL "
@@ -202,12 +220,14 @@ def aggregate_plan(spec, calculation, over=None, window=None):
                 f"CASE WHEN ({expression}) IS NOT NULL "
                 "THEN possessions END"
             )
+
             selections.extend(
                 [
                     f"{aggregate('sum', weighted)} AS weighted_sum",
                     f"{aggregate('sum', weight)} AS weight_sum",
                 ]
             )
+
             value = f"weighted_sum / weight_sum * {scale}"
             valid = "observations > 0 AND weight_sum > 0"
 
@@ -230,6 +250,7 @@ def metric_query(spec, calculation, scope, window):
             f"ROWS BETWEEN {window - 1} PRECEDING AND CURRENT ROW"
             ")"
         )
+
         selections, value, valid = aggregate_plan(
             spec,
             calculation,
@@ -264,7 +285,10 @@ def metric_query(spec, calculation, scope, window):
             )
         """
 
-    selections, value, valid = aggregate_plan(spec, calculation)
+    selections, value, valid = aggregate_plan(
+        spec,
+        calculation,
+    )
 
     return f"""
         WITH filtered AS (
@@ -318,6 +342,7 @@ def chart_expression(spec, calculation):
         if calculation == "weighted":
             numerator = spec["numerator"]
             denominator = spec["denominator"]
+
             return (
                 f"CASE WHEN ({denominator}) > 0 "
                 f"THEN ({numerator}) / ({denominator}) * {scale} END"
@@ -358,31 +383,6 @@ def get_player_name(db, player_id):
     return row[0] if row else None
 
 
-def get_player_team(db, season, player_id):
-    row = db.execute(
-        """
-        SELECT
-            team_id,
-            team_name,
-            count(*) AS games,
-            max(game_date) AS latest_game
-        FROM player_games
-        WHERE season_year = ?
-          AND season_type = 'Regular Season'
-          AND player_id = ?
-        GROUP BY team_id, team_name
-        ORDER BY games DESC, latest_game DESC
-        LIMIT 1
-        """,
-        [season, player_id],
-    ).fetchone()
-
-    if not row:
-        return None, None
-
-    return row[0], row[1]
-
-
 def get_season_game_count(db, season, player_id):
     return db.execute(
         """
@@ -411,7 +411,6 @@ def get_player_summary(
     if player_name is None:
         raise HTTPException(status_code=404, detail="Player not found")
 
-    team_id, team_name = get_player_team(db, season, player_id)
     games_count = get_season_game_count(db, season, player_id)
     query = metric_query(spec, calculation, scope, window)
     order = "DESC" if direction == "high" else "ASC"
@@ -422,7 +421,6 @@ def get_player_summary(
             + f"""
             SELECT
                 metric_value,
-                game_number,
                 game_date,
                 games_in_scope,
                 observations
@@ -435,13 +433,11 @@ def get_player_summary(
         ).fetchone()
 
         if row:
-            value, game_number, end_date, scope_games, observations = row
+            value, end_date, scope_games, observations = row
+
             return {
-                "season": season,
                 "player_id": player_id,
                 "player_name": player_name,
-                "team_id": team_id,
-                "team_name": team_name,
                 "status": "played",
                 "value": round(value, 2),
                 "games_count": games_count,
@@ -449,7 +445,6 @@ def get_player_summary(
                 "observations": observations,
                 "start_date": None,
                 "end_date": str(end_date),
-                "end_game_number": int(game_number),
             }
 
     else:
@@ -469,13 +464,17 @@ def get_player_summary(
         ).fetchone()
 
         if row:
-            value, start_date, end_date, scope_games, observations = row
+            (
+                value,
+                start_date,
+                end_date,
+                scope_games,
+                observations,
+            ) = row
+
             return {
-                "season": season,
                 "player_id": player_id,
                 "player_name": player_name,
-                "team_id": team_id,
-                "team_name": team_name,
                 "status": "played",
                 "value": round(value, 2),
                 "games_count": games_count,
@@ -483,16 +482,12 @@ def get_player_summary(
                 "observations": observations,
                 "start_date": str(start_date),
                 "end_date": str(end_date),
-                "end_game_number": None,
             }
 
     if games_count == 0:
         return {
-            "season": season,
             "player_id": player_id,
             "player_name": player_name,
-            "team_id": None,
-            "team_name": None,
             "status": "did_not_play",
             "value": 0.0 if calculation == "total" else None,
             "games_count": 0,
@@ -500,15 +495,11 @@ def get_player_summary(
             "observations": 0,
             "start_date": None,
             "end_date": None,
-            "end_game_number": None,
         }
 
     return {
-        "season": season,
         "player_id": player_id,
         "player_name": player_name,
-        "team_id": team_id,
-        "team_name": team_name,
         "status": "no_qualifying_result",
         "value": None,
         "games_count": games_count,
@@ -516,129 +507,7 @@ def get_player_summary(
         "observations": 0,
         "start_date": None,
         "end_date": None,
-        "end_game_number": None,
     }
-
-
-def strip_markup(value):
-    value = re.sub(r"<[^>]+>", "", value or "")
-    return " ".join(html.unescape(value).split())
-
-
-def metadata_value(metadata, key):
-    value = metadata.get(key, {})
-    return value.get("value", "") if isinstance(value, dict) else ""
-
-
-def reusable_license(name):
-    normalized = name.lower()
-    return (
-        normalized.startswith("cc ")
-        or normalized.startswith("cc-")
-        or "creative commons" in normalized
-        or "public domain" in normalized
-    )
-
-
-@lru_cache(maxsize=2048)
-def find_commons_portrait(player_name):
-    headers = {"User-Agent": USER_AGENT}
-    search_params = {
-        "action": "query",
-        "format": "json",
-        "generator": "search",
-        "gsrsearch": f'"{player_name}" basketball player',
-        "gsrnamespace": 0,
-        "gsrlimit": 5,
-        "prop": "pageimages|pageterms",
-        "piprop": "name",
-        "wbptterms": "description",
-        "redirects": 1,
-    }
-
-    try:
-        with httpx.Client(
-            headers=headers,
-            timeout=8.0,
-            follow_redirects=True,
-        ) as client:
-            search_response = client.get(WIKIMEDIA_API, params=search_params)
-            search_response.raise_for_status()
-            pages = search_response.json().get("query", {}).get("pages", {})
-
-            candidates = []
-
-            for page in pages.values():
-                image_name = page.get("pageimage")
-
-                if not image_name:
-                    continue
-
-                title = page.get("title", "")
-                descriptions = page.get("terms", {}).get("description", [])
-                description = " ".join(descriptions).lower()
-                exact = title.casefold() == player_name.casefold()
-                basketball = "basketball" in description
-                candidates.append((exact, basketball, image_name, title))
-
-            candidates.sort(reverse=True)
-
-            for _, _, image_name, title in candidates:
-                file_title = image_name
-
-                if not file_title.lower().startswith("file:"):
-                    file_title = f"File:{file_title}"
-
-                commons_params = {
-                    "action": "query",
-                    "format": "json",
-                    "titles": file_title,
-                    "prop": "imageinfo",
-                    "iiprop": "url|extmetadata",
-                    "iiurlwidth": 520,
-                }
-                commons_response = client.get(
-                    COMMONS_API,
-                    params=commons_params,
-                )
-                commons_response.raise_for_status()
-                commons_pages = (
-                    commons_response.json().get("query", {}).get("pages", {})
-                )
-
-                for commons_page in commons_pages.values():
-                    image_info = commons_page.get("imageinfo", [])
-
-                    if not image_info:
-                        continue
-
-                    image = image_info[0]
-                    metadata = image.get("extmetadata", {})
-                    license_name = strip_markup(
-                        metadata_value(metadata, "LicenseShortName")
-                    )
-
-                    if not reusable_license(license_name):
-                        continue
-
-                    artist = strip_markup(metadata_value(metadata, "Artist"))
-                    credit = artist or "Wikimedia Commons contributor"
-                    source_url = (
-                        "https://commons.wikimedia.org/wiki/"
-                        + quote(file_title.replace(" ", "_"), safe=":()_-")
-                    )
-
-                    return {
-                        "url": image.get("thumburl") or image.get("url"),
-                        "source_url": source_url,
-                        "credit": credit,
-                        "license": license_name,
-                        "article": title,
-                    }
-    except (httpx.HTTPError, ValueError, KeyError):
-        return None
-
-    return None
 
 
 @app.get("/")
@@ -646,36 +515,24 @@ def home():
     return FileResponse(STATIC_PATH / "index.html")
 
 
-@app.get("/api/health")
-def health():
-    with connection() as db:
-        db.execute("SELECT 1").fetchone()
-
-    return {"status": "ok"}
-
-
 @app.get("/api/meta")
 def meta():
     with connection() as db:
         seasons = [
             row[0]
-            for row in db.execute(
-                """
+            for row in db.execute("""
                 SELECT DISTINCT season_year
                 FROM player_games
                 WHERE season_type = 'Regular Season'
                 ORDER BY season_year DESC
-                """
-            ).fetchall()
+            """).fetchall()
         ]
 
-        built_at = db.execute(
-            """
+        built_at = db.execute("""
             SELECT value
             FROM app_metadata
             WHERE key = 'built_at'
-            """
-        ).fetchone()
+        """).fetchone()
 
     return {
         "seasons": seasons,
@@ -700,13 +557,10 @@ def metrics():
             }
         )
 
-    scopes = dict(SCOPES)
-    scopes["window"] = "Best streak"
-
     return {
         "metrics": results,
         "calculations": CALCULATIONS,
-        "scopes": scopes,
+        "scopes": SCOPES,
     }
 
 
@@ -715,46 +569,13 @@ def players(season: str):
     with connection() as db:
         rows = db.execute(
             """
-            WITH season_players AS (
-                SELECT
-                    player_id,
-                    max(player_name) AS player_name
-                FROM player_games
-                WHERE season_year = ?
-                  AND season_type = 'Regular Season'
-                GROUP BY player_id
-            ),
-            game_careers AS (
-                SELECT
-                    player_id,
-                    cast(
-                        min(extract(year FROM game_date))
-                        AS INTEGER
-                    ) AS from_year,
-                    cast(
-                        max(extract(year FROM game_date))
-                        AS INTEGER
-                    ) AS to_year
-                FROM player_games
-                GROUP BY player_id
-            )
-            SELECT
-                season_players.player_id,
-                season_players.player_name,
-                coalesce(
-                    players.from_year,
-                    game_careers.from_year
-                ) AS from_year,
-                coalesce(
-                    players.to_year,
-                    game_careers.to_year
-                ) AS to_year
-            FROM season_players
-            LEFT JOIN players
-              ON players.player_id = season_players.player_id
-            LEFT JOIN game_careers
-              ON game_careers.player_id = season_players.player_id
-            ORDER BY season_players.player_name
+            SELECT DISTINCT
+                player_id,
+                player_name
+            FROM player_games
+            WHERE season_year = ?
+              AND season_type = 'Regular Season'
+            ORDER BY player_name
             """,
             [season],
         ).fetchall()
@@ -763,10 +584,8 @@ def players(season: str):
         {
             "id": player_id,
             "name": player_name,
-            "from_year": from_year,
-            "to_year": to_year,
         }
-        for player_id, player_name, from_year, to_year in rows
+        for player_id, player_name in rows
     ]
 
 
@@ -837,26 +656,6 @@ def all_players():
     ]
 
 
-@app.get("/api/player-image")
-def player_image(player_id: int, season: str):
-    with connection() as db:
-        player_name = get_player_name(db, player_id)
-        _, team_name = get_player_team(db, season, player_id)
-
-    if player_name is None:
-        raise HTTPException(status_code=404, detail="Player not found")
-
-    image = find_commons_portrait(player_name)
-
-    return {
-        "player_id": player_id,
-        "player_name": player_name,
-        "season": season,
-        "team_name": team_name,
-        "image": image,
-    }
-
-
 @app.get("/api/result")
 def result(
     season: str,
@@ -895,6 +694,7 @@ def result(
                 """,
                 [season, player_id],
             ).fetchone()
+
         else:
             best = db.execute(
                 query
@@ -918,8 +718,8 @@ def result(
                 detail="No qualifying result found",
             )
 
-        team_id, team_name = get_player_team(db, season, player_id)
         chart_value = chart_expression(spec, calculation)
+
         games = db.execute(
             f"""
             SELECT
@@ -949,10 +749,15 @@ def result(
             games_count,
             observations,
         ) = best
+
         end = int(end_number)
         start = end - window
-        selected_ids = {game[0] for game in games[start:end]}
+        selected_ids = {
+            game[0]
+            for game in games[start:end]
+        }
         start_date = games[start][1]
+
     else:
         (
             player_name,
@@ -962,13 +767,12 @@ def result(
             games_count,
             observations,
         ) = best
+
         selected_ids = {game[0] for game in games}
 
     return {
         "player_id": player_id,
         "player_name": player_name,
-        "team_id": team_id,
-        "team_name": team_name,
         "season": season,
         "metric": requested_metric,
         "resolved_metric": metric_id,
@@ -992,7 +796,7 @@ def result(
                 "pts": pts,
                 "reb": reb,
                 "ast": ast,
-                "chart_value": game_chart_value,
+                "chart_value": value,
                 "selected": game_id in selected_ids,
             }
             for (
@@ -1003,7 +807,7 @@ def result(
                 pts,
                 reb,
                 ast,
-                game_chart_value,
+                value,
             ) in games
         ],
     }
@@ -1011,31 +815,26 @@ def result(
 
 @app.get("/api/compare")
 def compare(
+    season: str,
     primary_player_id: int,
     comparison_player_id: int,
-    primary_season: str | None = None,
-    comparison_season: str | None = None,
-    season: str | None = None,
     metric: str = "points",
     calculation: str | None = None,
     scope: str = "window",
     direction: str | None = None,
     window: int = Query(2, ge=2, le=20),
 ):
-    primary_season = primary_season or season
-    comparison_season = comparison_season or season or primary_season
-
-    if not primary_season or not comparison_season:
-        raise HTTPException(status_code=422, detail="Both seasons are required")
-
-    _, metric_id, spec, calculation = resolve_metric(metric, calculation)
+    _, metric_id, spec, calculation = resolve_metric(
+        metric,
+        calculation,
+    )
     scope = resolve_scope(scope)
     direction = resolve_direction(spec, direction)
 
     with connection() as db:
         primary = get_player_summary(
             db,
-            primary_season,
+            season,
             primary_player_id,
             spec,
             calculation,
@@ -1043,9 +842,10 @@ def compare(
             window,
             direction,
         )
+
         comparison = get_player_summary(
             db,
-            comparison_season,
+            season,
             comparison_player_id,
             spec,
             calculation,
@@ -1060,8 +860,7 @@ def compare(
         difference = round(primary["value"] - comparison["value"], 2)
 
     return {
-        "primary_season": primary_season,
-        "comparison_season": comparison_season,
+        "season": season,
         "metric": metric_id,
         "metric_label": spec["label"],
         "calculation": calculation,
@@ -1085,7 +884,10 @@ def similar(
     window: int = Query(2, ge=2, le=20),
     limit: int = Query(20, ge=1, le=100),
 ):
-    _, metric_id, spec, calculation = resolve_metric(metric, calculation)
+    _, metric_id, spec, calculation = resolve_metric(
+        metric,
+        calculation,
+    )
     scope = resolve_scope(scope)
     direction = resolve_direction(spec, direction)
     order = "DESC" if direction == "high" else "ASC"
@@ -1119,6 +921,7 @@ def similar(
                 """,
                 [season, limit],
             ).fetchall()
+
         else:
             rows = db.execute(
                 query
@@ -1138,7 +941,6 @@ def similar(
             ).fetchall()
 
     return {
-        "season": season,
         "metric": metric_id,
         "metric_label": spec["label"],
         "calculation": calculation,
