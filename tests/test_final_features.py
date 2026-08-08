@@ -87,7 +87,7 @@ def test_revised_dashboard_structure():
     ).read_text()
     stylesheet = (root / "app" / "static" / "style.css").read_text()
 
-    assert "What's in (or not in) a bar chart?" in html
+    assert "NBA statistics, with the context left in." in html
     assert "How does this affect LeBron's legacy?" in html
     assert 'id="primary-chart"' in html
     assert 'id="comparison-chart"' in html
