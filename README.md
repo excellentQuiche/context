@@ -1,4 +1,3 @@
-````markdown
 # NBAcontext
 
 NBAcontext is a simple NBA stats dashboard that allows the user to compare players from different seasons, look for their best stretches of games, switch between totals and rate stats, and view game-by-game results.
