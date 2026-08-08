@@ -629,3 +629,46 @@ form > button {
     flex: 1 1 110px;
   }
 }
+
+.header-links {
+  margin-left: auto;
+  display: flex;
+  gap: 22px;
+}
+
+.header-links a,
+footer a {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-decoration: none;
+}
+
+.header-links a:hover,
+footer a:hover {
+  text-decoration: underline;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 3px;
+}
+
+footer {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+  }
+}

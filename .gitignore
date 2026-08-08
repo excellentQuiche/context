@@ -6,3 +6,14 @@ data/app/*
 !data/source/.gitkeep
 !data/app/.gitkeep
 .vscode/
+
+.update-backup-*/
+*.bak
+*.before-*
+extended_schema.txt
+
+.update-backup-*/
+*.bak
+*.before-*
+.pytest_cache/
+.vscode/
