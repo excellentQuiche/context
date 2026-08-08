@@ -23,6 +23,10 @@ A big part of the project is showing how things like sample size or the way a st
 - Game-by-game charts
 - Player and team images
 
+## Planned features
+- Dredge through seasons of games for the most extreme edge cases given constraints (position, quarter/half, stat, etc.) over the entire dataset
+- Autoencoder-type thing to find really bizarre, interesting outliers. Have to actually read about how this works first
+
 ## Dataset contains:
 - **1.39 million player-game rows**
 - **5,280 players**
