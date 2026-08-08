@@ -146,7 +146,7 @@ GET /api/similar
 Requires Python 3.12+.
 
 ```bash
-git clone <REPOSITORY_URL>
+git clone <https://github.com/excellentQuiche/context/>
 cd nbacontext
 
 python3 -m venv .venv
