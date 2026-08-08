@@ -4,7 +4,11 @@ NBAcontext is a simple NBA stats dashboard that allows the user to compare playe
 
 A big part of the project is showing how things like sample size or the way a stat is calculated can make a comparison look more impressive than it really is.
 
-**Live demo:** `<YOUR_RENDER_URL>`
+**Live demo:** `https://context-cjvn.onrender.com/`
+
+<img width="1880" height="307" alt="image" src="https://github.com/user-attachments/assets/ea51d9e6-11f3-47bc-bd6f-c1066efcb8be" />
+<img width="1880" height="502" alt="image" src="https://github.com/user-attachments/assets/a3a3c212-2c69-43da-8346-6f804c17f562" />
+<img width="1880" height="503" alt="image" src="https://github.com/user-attachments/assets/8274614b-976a-4adb-9f00-1b45be883039" />
 
 ## Features
 - Compare players across different seasons
@@ -27,8 +31,7 @@ A big part of the project is showing how things like sample size or the way a st
 - Data going back to **1951–52**
 - Advanced stats going back to **1996–97**
 
-The data comes from the *NBA Dataset: Box Scores and Stats (1947–Today)* dataset.
-
+The data comes from this Kaggle dataset: https://www.kaggle.com/datasets/eoinamoore/historical-nba-data-and-player-box-scores
 Older box score data is used as the base, and advanced stats are added when they're available.
 
 The finished DuckDB database is too large to keep in the Git repo, so production downloads a compressed copy from a GitHub Release during deployment.
