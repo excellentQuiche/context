@@ -49,25 +49,8 @@ The finished DuckDB database is too large to keep in the Git repo, so production
 - Vanilla JS
 - Render (for hosting, as mentioned)
 
-Basic flow:
-
-```text
-Raw NBA CSV files
-        ↓
-Python data cleanup/build script
-        ↓
-      DuckDB
-        ↓
-    FastAPI API
-        ↓
-  Vanilla JS frontend
-        ↓
-Charts and comparisons
-```
-
 ## Backend
 The backend uses FastAPI for things like:
-
 - Validating requests
 - Defining metrics
 - Aggregating stats
@@ -97,14 +80,13 @@ I kept it framework-free because the frontend is fairly small and I wanted to wo
 ## Data Pipeline
 `scripts/build_database.py` builds the DuckDB database from the raw datasets.
 
-It:
-1. Loads the player-game data
-2. Cleans IDs, dates, seasons, minutes, and game types
-3. Removes invalid/non-participation rows
-4. Removes duplicate player/game records
-5. Joins advanced stats when available
-6. Creates indexes for common queries
-7. Runs a few checks on the finished data
+1. Load the player-game data
+2. Clean IDs, dates, seasons, minutes, and game types
+3. Remove invalid/non-participation rows
+4. Remove duplicate player/game records
+5. Join advanced stats when available
+6. Create indexes
+7. Run checks on the finished results
 
 Advanced stats fail to load & are caught for older seasons where they don't exist in the Kaggle set. 
 
@@ -113,7 +95,7 @@ For counting stats, the app supports:
 - Per game
 - Total
 - Per 36 minutes (most common rate stat/measure of efficiency)
-- Per 100 possessions
+- Per 100 possessions (for slower paced eras/teams)
 
 For shooting percentages, I added two calculation methods.
 
@@ -192,4 +174,3 @@ render.yaml
 requirements.txt
 run.sh
 ```
-````
