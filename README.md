@@ -144,7 +144,7 @@ Put the source datasets in `data/source/`, then build the database:
 python scripts/build_database.py
 ```
 
-#Structure
+## Structure
 ```text
 app/
   main.py
