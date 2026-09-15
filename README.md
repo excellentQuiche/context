@@ -24,8 +24,8 @@ A big part of the project is showing how things like sample size or the way a st
 - Player and team images
 
 ## Planned features
-- Dredge through seasons of games for the most extreme edge cases given constraints (position, quarter/half, stat, etc.) over the entire dataset
-- Autoencoder-type thing to find really bizarre, interesting outliers. Have to actually read about how this works first
+- Find statistically bizarre and unusual player games, stretches, and seasons across the dataset with Isolated forest or similar
+- Postseason, or postseason + regular season. Only the regular season stats populate currently.
 
 ## Dataset contains:
 - **1.39 million player-game rows**
@@ -103,7 +103,7 @@ The normal option uses the correct weighted percentage. There's also an intentio
 
 That second option is mainly there to show how a technically calculated number can give a misleading result.
 
-Rolling streaks are based on consecutive games a player appeared in during a regular season, or postseason if selected. The default is regular season though. 
+Rolling streaks are based on consecutive games a player appeared in during a regular season.
 
 ## API
 FastAPI's built-in API docs are available at:
