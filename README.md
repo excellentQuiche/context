@@ -143,8 +143,6 @@ Put the source datasets in `data/source/`, then build the database:
 ```bash
 python scripts/build_database.py
 
-## Project Structure
-
 ```text
 app/
   main.py
@@ -173,4 +171,5 @@ tests/
 render.yaml
 requirements.txt
 run.sh
+```
 ```
